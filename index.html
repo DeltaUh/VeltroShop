@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VeltroBlood — Бар для тех, кто не боится ночи</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/framer-motion@11.0.8/dist/framer-motion.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/space-grotesk@5.0.18/index.css">
+<style>
+  * { font-family: 'Space Grotesk', sans-serif; -webkit-font-smoothing: antialiased; }
+  body { background: #0a0a0a; color: #fff; overflow-x: hidden; margin: 0; }
+  .blood-glow { filter: drop-shadow(0 0 30px rgba(220,20,60,0.6)) drop-shadow(0 0 60px rgba(220,20,60,0.3)); }
+  .text-glow { text-shadow: 0 0 40px rgba(220,20,60,0.8), 0 0 80px rgba(220,20,60,0.4); }
+  .glass { background: linear-gradient(135deg, rgba(220,20,60,0.08) 0%, rgba(0,0,0,0.5) 100%); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(220,20,60,0.25); }
+  .glass-btn { background: linear-gradient(135deg, rgba(220,20,60,0.35) 0%, rgba(139,0,0,0.5) 100%); backdrop-filter: blur(15px); border: 1px solid rgba(220,20,60,0.5); box-shadow: 0 0 30px rgba(220,20,60,0.3), inset 0 1px 0 rgba(255,255,255,0.1); cursor: pointer; color: white; transition: all 0.3s; }
+  .glass-btn:hover { box-shadow: 0 0 60px rgba(220,20,60,0.6), inset 0 1px 0 rgba(255,255,255,0.15); }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: #0a0a0a; }
+  ::-webkit-scrollbar-thumb { background: #DC143C; border-radius: 5px; }
+  .jagged-cut { clip-path: polygon(0% 40%, 3% 55%, 7% 35%, 11% 65%, 15% 42%, 19% 58%, 23% 32%, 27% 68%, 31% 45%, 35% 55%, 39% 38%, 43% 62%, 47% 42%, 51% 58%, 55% 35%, 59% 65%, 63% 45%, 67% 55%, 71% 32%, 75% 68%, 79% 45%, 83% 55%, 87% 38%, 91% 62%, 95% 42%, 100% 55%, 100% 60%, 95% 48%, 91% 68%, 87% 42%, 83% 62%, 79% 48%, 75% 72%, 71% 38%, 67% 62%, 63% 48%, 59% 72%, 55% 38%, 51% 62%, 47% 48%, 43% 68%, 39% 42%, 35% 62%, 31% 48%, 27% 72%, 23% 38%, 19% 62%, 15% 48%, 11% 72%, 7% 38%, 3% 62%, 0% 48%); }
+  @keyframes pulse-slow { 0%,100% { opacity: 0.3; } 50% { opacity: 0.6; } }
+  .pulse-slow { animation: pulse-slow 6s ease-in-out infinite; }
+  @keyframes particle-fly {
+    0%,100% { opacity: 0; transform: translateY(0) scale(0.5); }
+    50% { opacity: 1; transform: translateY(-40px) scale(1.2); }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// ===== TELEGRAM SDK =====
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  // Подстраиваем цвета под тему Telegram
+  if (tg.setHeaderColor) tg.setHeaderColor('#0a0a0a');
+  if (tg.setBackgroundColor) tg.setBackgroundColor('#0a0a0a');
+}
+
+const { motion, AnimatePresence } = window.Motion;
+
+const state = {
+  page: 'ageGate',
+  cart: [],
+  selectedProduct: null,
+};
+const listeners = new Set();
+const setState = (update) => { Object.assign(state, typeof update === 'function' ? update(state) : update); listeners.forEach(l => l()); };
+const useStore = () => { const [,force] = React.useState(0); React.useEffect(()=>{const l=()=>force(x=>x+1); listeners.add(l); return ()=>listeners.delete(l);},[]); return state; };
+
+const PRODUCTS = [
+  { id:1, name:'Поцелуй вампирши', type:'Клубника со льдом', price:1290, icon:'🩸', desc:'Холодный, сладкий, как губы возлюбленной после ночи охоты.', volume:'20мл', nicotine:'50мг' },
+  { id:2, name:'Артериальная', type:'Вишня', price:1290, icon:'🍷', desc:'Густая и насыщенная, как кровь только что сражённой жертвы.', volume:'20мл', nicotine:'50мг' },
+  { id:3, name:'Пепел графа', type:'Табак', price:1490, icon:'🔥', desc:'Терпкий дым из старинного замка. Каждая затяжка — как сигара в кабинете лорда.', volume:'30мл', nicotine:'20мг' },
+  { id:4, name:'Экзотическая лихорадка', type:'Манго', price:1390, icon:'🥭', desc:'Сладкая экзотика из тропиков, где скрываются ночные хищники.', volume:'20мл', nicotine:'50мг' },
+  { id:5, name:'Ледяное дыхание', type:'Мята', price:1290, icon:'❄️', desc:'Освежающая, как ночной воздух после полночной охоты.', volume:'20мл', nicotine:'35мг' },
+  { id:6, name:'Эликсир тьмы', type:'Кола', price:1190, icon:'🥤', desc:'Шипучий напиток, который пьют на балах нежити.', volume:'30мл', nicotine:'20мг' },
+  { id:7, name:'Кровавый рассвет', type:'Арбуз', price:1290, icon:'🍉', desc:'Сладкий, как последняя ночь перед восходом.', volume:'20мл', nicotine:'50мг' },
+  { id:8, name:'Чёрная луна', type:'Черника', price:1390, icon:'🫐', desc:'Ягодная ночь во всей своей красе.', volume:'20мл', nicotine:'35мг' },
+];
+
+function AgeGate({ onEnter }) {
+  const [isCutting, setIsCutting] = React.useState(false);
+  const [isEntered, setIsEntered] = React.useState(false);
+
+  const handleCut = () => {
+    if (isCutting) return;
+    if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+    setIsCutting(true);
+    setTimeout(() => setIsEntered(true), 2200);
+    setTimeout(() => onEnter(), 3800);
+  };
+
+  const particles = Array.from({length:60}, (_,i) => ({
+    left: (i * 37.53 + 13) % 100, top: (i * 73.21 + 7) % 100,
+    delay: (i * 0.37) % 5, duration: 3 + (i % 4),
+  }));
+  const drips = Array.from({length:18}, (_,i) => ({
+    left: 5 + i * 5.3, height: 40 + (i * 23) % 100, delay: (i * 0.08) % 1.5,
+  }));
+
+  return React.createElement(motion.div, { initial:{opacity:0}, animate:{opacity:1}, exit:{opacity:0}, className:'min-h-screen flex flex-col items-center justify-center relative overflow-hidden bg-black text-white p-6' },
+    React.createElement('div', { className:'absolute inset-0 pointer-events-none' },
+      React.createElement('div', { className:'absolute top-1/3 left-1/4 w-[700px] h-[700px] bg-red-900/20 rounded-full blur-[180px] pulse-slow' }),
+      React.createElement('div', { className:'absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-red-700/15 rounded-full blur-[150px] pulse-slow', style:{animationDelay:'2s'} })
+    ),
+    React.createElement('div', { className:'absolute inset-0 pointer-events-none' },
+      particles.map((p,i) => React.createElement('div', {
+        key:i, className:'absolute w-1 h-1 bg-red-600 rounded-full',
+        style:{ left: p.left+'%', top: p.top+'%', animation: `particle-fly ${p.duration}s ease-in-out ${p.delay}s infinite`, boxShadow:'0 0 10px #DC143C' }
+      }))
+    ),
+    React.createElement('div', { className:'relative mb-16 flex justify-center items-center z-10' },
+      React.createElement(motion.div, { className:'flex items-center', animate: isCutting ? { gap: 80 } : { gap: 0 }, transition: { duration: 1.2 } },
+        React.createElement(motion.h1, { className:'text-[4rem] md:text-[9rem] font-black tracking-tighter leading-none text-white text-glow select-none',
+          animate: isCutting ? { x: -30, rotate: -3, opacity: 0.6 } : { x: 0, rotate: 0, opacity: 1 } }, 'Veltro'),
+        React.createElement(motion.h1, { className:'text-[4rem] md:text-[9rem] font-black tracking-tighter leading-none text-red-600 text-glow select-none',
+          animate: isCutting ? { x: 30, rotate: 3, opacity: 0.6 } : { x: 0, rotate: 0, opacity: 1 } }, 'Blood')
+      ),
+      React.createElement(AnimatePresence, null,
+        isCutting && React.createElement(motion.div, { initial: { scaleX: 0, opacity: 0 }, animate: { scaleX: 1, opacity: 1 }, transition: { duration: 0.6 },
+          className:'absolute left-0 w-full h-3 bg-red-600 jagged-cut origin-left blood-glow', style:{ top: '50%', transform: 'translateY(-50%)' } })
+      ),
+      React.createElement(AnimatePresence, null,
+        isCutting && React.createElement('div', { className:'absolute left-0 w-full pointer-events-none overflow-visible', style:{ top: '50%', height: '200px' } },
+          drips.map((d,i) => React.createElement(motion.div, { key:i, initial: { height: 0, opacity: 1 }, animate: { height: d.height, opacity: [1,1,0] },
+            transition: { duration: 1.8, delay: d.delay + 0.3 },
+            className:'absolute bg-gradient-to-b from-red-600 to-red-900 rounded-b-full',
+            style:{ left: d.left+'%', top: 0, width: '3px', boxShadow: '0 0 10px #DC143C' } })
+        ))
+      )
+    ),
+    React.createElement(motion.div, { className:'w-36 h-36 md:w-44 md:h-44 rounded-full border-2 border-red-600 flex items-center justify-center mb-14 relative z-10',
+      animate: isCutting ? { scale: 0.85, opacity: 0.2, rotate: 15 } : { scale: 1, opacity: 1, rotate: 0 },
+      style:{ boxShadow: '0 0 40px rgba(220,20,60,0.6), inset 0 0 30px rgba(220,20,60,0.2)' } },
+      React.createElement('span', { className:'text-6xl md:text-7xl font-black text-red-600' }, 'V')
+    ),
+    React.createElement('div', { className:'text-center max-w-2xl z-10' },
+      React.createElement('p', { className:'text-2xl md:text-4xl mb-5 text-white/90 font-light' }, 'Ты стоишь у дверей VeltroBlood.'),
+      React.createElement('p', { className:'text-xl md:text-2xl mb-5 text-white/60' }, 'За ними — яд для бессмертных.'),
+      React.createElement('p', { className:'text-xl md:text-2xl mb-12 text-red-500 font-bold' }, 'Если тебе меньше 18 зим — уходи.'),
+      React.createElement(motion.button, { onClick: handleCut, disabled: isCutting,
+        whileHover: isCutting ? {} : { scale: 1.05, y: -2 }, whileTap: isCutting ? {} : { scale: 0.97 },
+        className:'px-12 py-5 text-xl md:text-2xl font-bold rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed glass-btn' },
+        isCutting ? 'Печать сломана...' : 'Разрезать печать')
+    ),
+    React.createElement(AnimatePresence, null,
+      isEntered && React.createElement(motion.div, { initial: { opacity: 0 }, animate: { opacity: 1 },
+        className:'fixed inset-0 bg-black/95 flex items-center justify-center z-50 backdrop-blur-xl' },
+        React.createElement(motion.h2, { initial: { scale: 0.8, y: 30 }, animate: { scale: 1, y: 0 },
+          className:'text-5xl md:text-7xl font-black text-white text-glow' }, 'Добро пожаловать, странник...'))
+    )
+  );
+}
+
+function Navbar({ cart, setPage }) {
+  const total = cart.reduce((s,i)=>s+i.qty, 0);
+  return React.createElement('header', { className:'sticky top-0 z-40 glass border-b border-red-900/30' },
+    React.createElement('div', { className:'max-w-7xl mx-auto flex justify-between items-center px-6 py-5' },
+      React.createElement('button', { onClick: () => setPage('home'), className:'text-3xl md:text-4xl font-black tracking-tighter hover:scale-105 transition-transform' },
+        React.createElement('span', { className:'text-white' }, 'Veltro'),
+        React.createElement('span', { className:'text-red-600' }, 'Blood')
+      ),
+      React.createElement('nav', { className:'hidden md:flex gap-8 text-lg' },
+        React.createElement('button', { onClick:()=>setPage('home'), className:'text-white/80 hover:text-white transition-colors' }, 'Главная'),
+        React.createElement('button', { onClick:()=>setPage('catalog'), className:'text-white/80 hover:text-white transition-colors' }, 'Эликсиры'),
+        React.createElement('button', { onClick:()=>document.getElementById('history-section')?.scrollIntoView({ behavior: 'smooth' }), className:'text-white/80 hover:text-white transition-colors' }, 'О клубе')
+      ),
+      React.createElement(motion.button, { onClick: () => setPage('cart'), whileHover: { scale: 1.05 }, whileTap: { scale: 0.95 },
+        className:'px-6 py-3 rounded-xl text-white font-semibold glass-btn flex items-center gap-2' },
+        React.createElement('span', null, '🛒'),
+        React.createElement('span', null, 'Склеп'),
+        total > 0 && React.createElement('span', { className:'bg-red-600 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold' }, total)
+      )
+    )
+  );
+}
+
+function Home({ setPage, setSelectedProduct }) {
+  return React.createElement('div', { className:'min-h-screen bg-black text-white' },
+    React.createElement(Navbar, { cart: state.cart, setPage }),
+    React.createElement('section', { className:'min-h-screen flex flex-col items-center justify-center text-center px-6 relative overflow-hidden' },
+      React.createElement('div', { className:'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] bg-red-900/20 rounded-full blur-[200px] pointer-events-none pulse-slow' }),
+      React.createElement(motion.div, { initial: { opacity: 0, y: 40 }, animate: { opacity: 1, y: 0 }, transition: { duration: 1 } },
+        React.createElement('p', { className:'text-lg md:text-xl text-red-500 font-semibold mb-6 tracking-widest uppercase' }, '— VeltroBlood Est. 1847 —'),
+        React.createElement('h1', { className:'text-[5rem] md:text-[14rem] font-black tracking-tighter leading-none mb-8 text-glow' },
+          React.createElement('span', { className:'text-white' }, 'Veltro'),
+          React.createElement('span', { className:'text-red-600' }, 'Blood')
+        ),
+        React.createElement('p', { className:'text-2xl md:text-4xl text-white/80 max-w-3xl mx-auto mb-12 font-light leading-relaxed' },
+          'Бар для тех, кто не боится ночи.',
+          React.createElement('br'),
+          React.createElement('span', { className:'text-white/50' }, 'Каждая затяжка — глоток бессмертия.')
+        ),
+        React.createElement('div', { className:'flex flex-col sm:flex-row gap-4 justify-center items-center' },
+          React.createElement(motion.button, { onClick: () => setPage('catalog'), whileHover: { scale: 1.05, y: -3 }, whileTap: { scale: 0.97 },
+            className:'px-14 py-5 text-2xl font-bold rounded-xl glass-btn' }, 'Выбрать эликсир'),
+          React.createElement(motion.button, { onClick: () => document.getElementById('history-section')?.scrollIntoView({ behavior: 'smooth' }),
+            whileHover: { scale: 1.05 }, whileTap: { scale: 0.97 },
+            className:'px-14 py-5 text-2xl font-bold rounded-xl border-2 border-white/30 hover:border-white/60 transition-colors text-white' }, 'Наша история')
+        )
+      )
+    ),
+    React.createElement('section', { className:'py-32 px-6 max-w-7xl mx-auto' },
+      React.createElement(motion.div, { initial: { opacity: 0, y: 40 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, className:'text-center mb-20' },
+        React.createElement('h2', { className:'text-6xl md:text-8xl font-black mb-6 text-glow' }, 'Выбери свой ', React.createElement('span', { className:'text-red-600' }, 'яд')),
+        React.createElement('p', { className:'text-xl md:text-2xl text-white/60 max-w-3xl mx-auto' }, 'В нашем погребе — сотни зелий. От сладких, как поцелуй вампирши, до горьких, как пепел сожжённой деревни.')
+      ),
+      React.createElement('div', { className:'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8' },
+        PRODUCTS.slice(0,6).map((p,i) =>
+          React.createElement(motion.div, { key: p.id, initial: { opacity: 0, y: 50 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true },
+            transition: { delay: i * 0.1 }, whileHover: { y: -8, scale: 1.02 },
+            onClick: () => { setSelectedProduct(p); setPage('product'); },
+            className:'glass rounded-3xl p-8 cursor-pointer group relative overflow-hidden' },
+            React.createElement('div', { className:'absolute top-0 right-0 w-40 h-40 bg-red-600/10 rounded-full blur-3xl group-hover:bg-red-600/30 transition-all' }),
+            React.createElement('div', { className:'text-7xl mb-6 group-hover:scale-110 transition-transform' }, p.icon),
+            React.createElement('h3', { className:'text-3xl font-bold mb-2 text-white' }, p.name),
+            React.createElement('p', { className:'text-white/50 mb-4 text-lg' }, p.type),
+            React.createElement('div', { className:'flex justify-between items-center mt-6' },
+              React.createElement('span', { className:'text-2xl font-bold text-red-500' }, p.price + ' ₽'),
+              React.createElement('span', { className:'text-white/40 group-hover:text-white transition-colors' }, 'Подробнее →')
+            )
+          )
+        )
+      ),
+      React.createElement('div', { className:'text-center mt-16' },
+        React.createElement(motion.button, { onClick: () => setPage('catalog'), whileHover: { scale: 1.05 }, whileTap: { scale: 0.97 },
+          className:'px-12 py-4 text-xl font-bold rounded-xl border-2 border-red-600/50 hover:border-red-600 transition-colors text-white' }, 'Все эликсиры →')
+      )
+    ),
+    React.createElement('section', { id: 'history-section', className:'py-32 px-6' },
+      React.createElement('div', { className:'max-w-5xl mx-auto glass rounded-3xl p-12 md:p-20 relative overflow-hidden' },
+        React.createElement('div', { className:'absolute -top-20 -right-20 w-80 h-80 bg-red-600/20 rounded-full blur-3xl' }),
+        React.createElement(motion.div, { initial: { opacity: 0, y: 40 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true }, className:'relative' },
+          React.createElement('p', { className:'text-red-500 font-semibold mb-4 tracking-widest uppercase' }, '— Est. 1847 —'),
+          React.createElement('h2', { className:'text-5xl md:text-7xl font-black mb-10 text-glow' }, 'История ', React.createElement('span', { className:'text-red-600' }, 'VeltroBlood')),
+          React.createElement('div', { className:'space-y-6 text-xl md:text-2xl text-white/80 leading-relaxed' },
+            React.createElement('p', null, 'VeltroBlood был основан в 1847 году графом Вельтро, который искал способ наслаждаться ритуалом без необходимости охоты. Он создал первые эликсиры в своей лаборатории под замком.'),
+            React.createElement('p', null, 'Сегодня мы продолжаем его дело. Мы не просто магазин. Мы — закрытый клуб для тех, кто понимает, что ночь — это не время суток, а состояние души.')
+          )
+        )
+      )
+    ),
+    React.createElement('footer', { className:'border-t border-red-900/30 py-16 px-6' },
+      React.createElement('div', { className:'max-w-7xl mx-auto text-center' },
+        React.createElement('p', { className:'text-2xl mb-2' },
+          React.createElement('span', { className:'text-white font-bold' }, 'Veltro'),
+          React.createElement('span', { className:'text-red-600 font-bold' }, 'Blood')
+        ),
+        React.createElement('p', { className:'text-white/50 mb-4' }, '© 2026. Все права защищены тьмой.'),
+        React.createElement('p', { className:'text-white/30 text-sm' }, '18+ | Курение вредит вашему здоровью')
+      )
+    )
+  );
+}
+
+function Catalog({ setPage, setSelectedProduct, addToCart }) {
+  return React.createElement('div', { className:'min-h-screen bg-black text-white' },
+    React.createElement(Navbar, { cart: state.cart, setPage }),
+    React.createElement('main', { className:'max-w-7xl mx-auto px-6 py-16' },
+      React.createElement(motion.div, { initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0 }, className:'text-center mb-16' },
+        React.createElement('p', { className:'text-red-500 font-semibold mb-3 tracking-widest uppercase' }, '— Погреб VeltroBlood —'),
+        React.createElement('h1', { className:'text-6xl md:text-8xl font-black mb-6 text-glow' }, 'Каталог ', React.createElement('span', { className:'text-red-600' }, 'эликсиров')),
+        React.createElement('p', { className:'text-xl md:text-2xl text-white/60' }, 'Каждый вкус — новое проклятие. Выбирай мудро.')
+      ),
+      React.createElement('div', { className:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' },
+        PRODUCTS.map((p, i) =>
+          React.createElement(motion.div, { key: p.id, initial: { opacity: 0, y: 40 }, animate: { opacity: 1, y: 0 }, transition: { delay: i * 0.07 },
+            whileHover: { y: -8 }, className:'glass rounded-3xl p-6 flex flex-col relative overflow-hidden group' },
+            React.createElement('div', { className:'absolute -top-10 -right-10 w-40 h-40 bg-red-600/10 rounded-full blur-3xl group-hover:bg-red-600/30 transition-all' }),
+            React.createElement('div', { onClick: () => { setSelectedProduct(p); setPage('product'); }, className:'cursor-pointer' },
+              React.createElement('div', { className:'text-7xl mb-4 group-hover:scale-110 transition-transform' }, p.icon),
+              React.createElement('h3', { className:'text-2xl font-bold mb-1 text-white' }, p.name),
+              React.createElement('p', { className:'text-white/50 mb-3' }, p.type),
+              React.createElement('p', { className:'text-white/40 text-sm mb-6 line-clamp-2' }, p.desc)
+            ),
+            React.createElement('div', { className:'mt-auto pt-4 border-t border-white/10 flex justify-between items-center' },
+              React.createElement('span', { className:'text-2xl font-bold text-red-500' }, p.price + ' ₽'),
+              React.createElement(motion.button, { onClick: (e) => { e.stopPropagation(); addToCart(p); if(tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); },
+                whileHover: { scale: 1.08 }, whileTap: { scale: 0.92 },
+                className:'px-5 py-2 rounded-lg text-sm font-bold glass-btn' }, 'В склеп')
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
+function Product({ product, setPage, addToCart }) {
+  if (!product) return null;
+  const p = product;
+  return React.createElement('div', { className:'min-h-screen bg-black text-white' },
+    React.createElement(Navbar, { cart: state.cart, setPage }),
+    React.createElement('main', { className:'max-w-6xl mx-auto px-6 py-16' },
+      React.createElement('button', { onClick: () => setPage('catalog'), className:'text-white/60 hover:text-white mb-8 text-lg' }, '← Назад к каталогу'),
+      React.createElement('div', { className:'grid md:grid-cols-2 gap-12' },
+        React.createElement('div', { className:'glass rounded-3xl aspect-square flex items-center justify-center relative overflow-hidden' },
+          React.createElement('div', { className:'absolute inset-0 bg-gradient-to-br from-red-900/20 to-transparent' }),
+          React.createElement('div', { className:'text-[15rem] relative z-10' }, p.icon)
+        ),
+        React.createElement('div', { className:'flex flex-col' },
+          React.createElement('p', { className:'text-red-500 font-semibold mb-2 tracking-widest uppercase' }, p.type),
+          React.createElement('h1', { className:'text-5xl md:text-7xl font-black mb-6 text-glow' }, p.name),
+          React.createElement('p', { className:'text-xl text-white/70 leading-relaxed mb-8' }, p.desc),
+          React.createElement('div', { className:'grid grid-cols-2 gap-4 mb-10' },
+            React.createElement('div', { className:'glass rounded-xl p-4' },
+              React.createElement('p', { className:'text-white/50 text-sm mb-1' }, 'Объём'),
+              React.createElement('p', { className:'text-xl font-bold' }, p.volume)
+            ),
+            React.createElement('div', { className:'glass rounded-xl p-4' },
+              React.createElement('p', { className:'text-white/50 text-sm mb-1' }, 'Никотин'),
+              React.createElement('p', { className:'text-xl font-bold' }, p.nicotine)
+            )
+          ),
+          React.createElement('div', { className:'mt-auto flex items-center justify-between gap-6' },
+            React.createElement('span', { className:'text-5xl font-black text-red-500 text-glow' }, p.price + ' ₽'),
+            React.createElement(motion.button, { onClick: () => { addToCart(p); setPage('cart'); if(tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred('success'); },
+              whileHover: { scale: 1.05 }, whileTap: { scale: 0.95 },
+              className:'px-10 py-5 rounded-xl text-xl font-bold glass-btn' }, 'Добавить в склеп')
+          )
+        )
+      )
+    )
+  );
+}
+
+function Cart({ cart, setCart, setPage }) {
+  const total = cart.reduce((s,i) => s + i.price * i.qty, 0);
+  const removeItem = (id) => setCart(cart.filter(i => i.id !== id));
+  const updateQty = (id, delta) => {
+    setCart(cart.map(i => i.id === id ? {...i, qty: Math.max(0, i.qty + delta)} : i).filter(i => i.qty > 0));
+  };
+  const checkout = () => {
+    const orderData = JSON.stringify({
+      items: cart.map(i => ({name: i.name, qty: i.qty, price: i.price})),
+      total: total,
+      userId: tg?.initDataUnsafe?.user?.id || 'unknown',
+      userName: tg?.initDataUnsafe?.user?.first_name || 'Аноним',
+      date: new Date().toISOString()
+    });
+    if (tg) {
+      tg.sendData(orderData); // Отправит заказ боту и закроет WebApp
+    } else {
+      alert('Заказ оформлен! (В реальном Telegram здесь бы открылся чат с ботом)');
+    }
+  };
+
+  return React.createElement('div', { className:'min-h-screen bg-black text-white' },
+    React.createElement(Navbar, { cart: cart, setPage }),
+    React.createElement('main', { className:'max-w-5xl mx-auto px-6 py-16' },
+      React.createElement('p', { className:'text-red-500 font-semibold mb-3 tracking-widest uppercase' }, '— Ваш склеп —'),
+      React.createElement('h1', { className:'text-5xl md:text-7xl font-black mb-12 text-glow' }, 'Камера ', React.createElement('span', { className:'text-red-600' }, 'хранения')),
+      cart.length === 0
+        ? React.createElement('div', { className:'glass rounded-3xl p-20 text-center' },
+            React.createElement('div', { className:'text-7xl mb-6' }, '⚰️'),
+            React.createElement('p', { className:'text-2xl text-white/60' }, 'Ваш склеп пуст. Выберите эликсир, чтобы начать ритуал.'),
+            React.createElement(motion.button, { onClick: () => setPage('catalog'), whileHover: { scale: 1.05 }, whileTap: { scale: 0.95 },
+              className:'mt-8 px-10 py-4 rounded-xl text-lg font-bold glass-btn' }, 'К эликсирам')
+          )
+        : React.createElement(React.Fragment, null,
+            React.createElement('div', { className:'space-y-4 mb-12' },
+              cart.map(item =>
+                React.createElement(motion.div, { key: item.id, layout: true, initial: { opacity: 0, x: -20 }, animate: { opacity: 1, x: 0 },
+                  className:'glass rounded-2xl p-6 flex items-center gap-6 flex-wrap' },
+                  React.createElement('div', { className:'text-5xl' }, item.icon),
+                  React.createElement('div', { className:'flex-1 min-w-[150px]' },
+                    React.createElement('h3', { className:'text-xl font-bold' }, item.name),
+                    React.createElement('p', { className:'text-white/50' }, item.type)
+                  ),
+                  React.createElement('div', { className:'flex items-center gap-3' },
+                    React.createElement('button', { onClick: () => updateQty(item.id, -1), className:'w-10 h-10 rounded-lg border border-white/20 hover:border-white/50 text-white' }, '−'),
+                    React.createElement('span', { className:'text-xl font-bold w-8 text-center' }, item.qty),
+                    React.createElement('button', { onClick: () => updateQty(item.id, 1), className:'w-10 h-10 rounded-lg border border-white/20 hover:border-white/50 text-white' }, '+')
+                  ),
+                  React.createElement('div', { className:'text-2xl font-bold text-red-500 w-32 text-right' }, (item.price * item.qty) + ' ₽'),
+                  React.createElement('button', { onClick: () => removeItem(item.id), className:'text-white/40 hover:text-red-500 text-2xl transition-colors' }, '×')
+                )
+              )
+            ),
+            React.createElement('div', { className:'glass rounded-3xl p-10' },
+              React.createElement('div', { className:'flex justify-between items-center mb-6 flex-wrap gap-4' },
+                React.createElement('span', { className:'text-2xl text-white/70' }, 'Итого к оплате:'),
+                React.createElement('span', { className:'text-5xl font-black text-red-500 text-glow' }, total + ' ₽')
+              ),
+              React.createElement('p', { className:'text-white/40 mb-6 text-sm' }, '+ 25 капель крови будет добавлено в вашу коллекцию'),
+              React.createElement(motion.button, { onClick: checkout, whileHover: { scale: 1.02 }, whileTap: { scale: 0.98 },
+                className:'w-full py-6 rounded-xl text-2xl font-bold glass-btn' }, 'Оформить ритуал')
+            )
+          )
+    )
+  );
+}
+
+function App() {
+  const { page } = useStore();
+  const [cart, setCart] = React.useState([]);
+  const [selectedProduct, setSelectedProduct] = React.useState(null);
+
+  const addToCart = (p) => {
+    setCart(prev => {
+      const existing = prev.find(i => i.id === p.id);
+      return existing
+        ? prev.map(i => i.id === p.id ? {...i, qty: i.qty+1} : i)
+        : [...prev, {...p, qty:1}];
+    });
+    state.cart = cart; // синхронизация
+  };
+  state.cart = cart;
+
+  const setPage = (p) => setState({page: p});
+
+  return React.createElement(AnimatePresence, { mode: 'wait' },
+    page === 'ageGate' && React.createElement(motion.div, { key:'age', initial:{opacity:0}, animate:{opacity:1}, exit:{opacity:0} },
+      React.createElement(AgeGate, { onEnter: () => setPage('home') })
+    ),
+    page !== 'ageGate' && React.createElement(motion.div, { key:'main', initial:{opacity:0}, animate:{opacity:1}, exit:{opacity:0}, className:'min-h-screen bg-black text-white' },
+      page === 'home' && React.createElement(Home, { setPage, setSelectedProduct }),
+      page === 'catalog' && React.createElement(Catalog, { setPage, setSelectedProduct, addToCart }),
+      page === 'product' && React.createElement(Product, { product: selectedProduct, setPage, addToCart }),
+      page === 'cart' && React.createElement(Cart, { cart, setCart, setPage })
+    )
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(App));
+</script>
+</body>
+</html>
