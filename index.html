@@ -28,17 +28,23 @@
     0%,100% { opacity: 0; transform: translateY(0) scale(0.5); }
     50% { opacity: 1; transform: translateY(-40px) scale(1.2); }
   }
+  @keyframes wheel-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes carriage-move {
+    0% { left: 10%; }
+    100% { left: 90%; }
+  }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script>
-// ===== TELEGRAM SDK =====
 const tg = window.Telegram?.WebApp;
 if (tg) {
   tg.ready();
   tg.expand();
-  // Подстраиваем цвета под тему Telegram
   if (tg.setHeaderColor) tg.setHeaderColor('#0a0a0a');
   if (tg.setBackgroundColor) tg.setBackgroundColor('#0a0a0a');
 }
@@ -48,23 +54,26 @@ const { motion, AnimatePresence } = window.Motion;
 const state = {
   page: 'ageGate',
   cart: [],
+  favorites: [],
   selectedProduct: null,
+  hasSeenRoulette: false,
 };
 const listeners = new Set();
 const setState = (update) => { Object.assign(state, typeof update === 'function' ? update(state) : update); listeners.forEach(l => l()); };
 const useStore = () => { const [,force] = React.useState(0); React.useEffect(()=>{const l=()=>force(x=>x+1); listeners.add(l); return ()=>listeners.delete(l);},[]); return state; };
 
 const PRODUCTS = [
-  { id:1, name:'Поцелуй вампирши', type:'Клубника со льдом', price:1290, icon:'🩸', desc:'Холодный, сладкий, как губы возлюбленной после ночи охоты.', volume:'20мл', nicotine:'50мг' },
-  { id:2, name:'Артериальная', type:'Вишня', price:1290, icon:'🍷', desc:'Густая и насыщенная, как кровь только что сражённой жертвы.', volume:'20мл', nicotine:'50мг' },
-  { id:3, name:'Пепел графа', type:'Табак', price:1490, icon:'🔥', desc:'Терпкий дым из старинного замка. Каждая затяжка — как сигара в кабинете лорда.', volume:'30мл', nicotine:'20мг' },
-  { id:4, name:'Экзотическая лихорадка', type:'Манго', price:1390, icon:'🥭', desc:'Сладкая экзотика из тропиков, где скрываются ночные хищники.', volume:'20мл', nicotine:'50мг' },
-  { id:5, name:'Ледяное дыхание', type:'Мята', price:1290, icon:'❄️', desc:'Освежающая, как ночной воздух после полночной охоты.', volume:'20мл', nicotine:'35мг' },
-  { id:6, name:'Эликсир тьмы', type:'Кола', price:1190, icon:'🥤', desc:'Шипучий напиток, который пьют на балах нежити.', volume:'30мл', nicotine:'20мг' },
-  { id:7, name:'Кровавый рассвет', type:'Арбуз', price:1290, icon:'🍉', desc:'Сладкий, как последняя ночь перед восходом.', volume:'20мл', nicotine:'50мг' },
-  { id:8, name:'Чёрная луна', type:'Черника', price:1390, icon:'🫐', desc:'Ягодная ночь во всей своей красе.', volume:'20мл', nicotine:'35мг' },
+  { id:1, name:'Поцелуй вампирши', type:'Клубника со льдом', price:1290, icon:'🩸', desc:'Холодный, сладкий, как губы возлюбленной после ночи охоты.', volume:'20мл', nicotine:'50мг', category:'fruits', strength:'50' },
+  { id:2, name:'Артериальная', type:'Вишня', price:1290, icon:'🍷', desc:'Густая и насыщенная, как кровь только что сражённой жертвы.', volume:'20мл', nicotine:'50мг', category:'fruits', strength:'50' },
+  { id:3, name:'Пепел графа', type:'Табак', price:1490, icon:'🔥', desc:'Терпкий дым из старинного замка.', volume:'30мл', nicotine:'20мг', category:'tobacco', strength:'20' },
+  { id:4, name:'Экзотическая лихорадка', type:'Манго', price:1390, icon:'🥭', desc:'Сладкая экзотика из тропиков.', volume:'20мл', nicotine:'50мг', category:'fruits', strength:'50' },
+  { id:5, name:'Ледяное дыхание', type:'Мята', price:1290, icon:'❄️', desc:'Освежающая, как ночной воздух.', volume:'20мл', nicotine:'35мг', category:'fresh', strength:'35' },
+  { id:6, name:'Эликсир тьмы', type:'Кола', price:1190, icon:'🥤', desc:'Шипучий напиток для балов нежити.', volume:'30мл', nicotine:'20мг', category:'dessert', strength:'20' },
+  { id:7, name:'Кровавый рассвет', type:'Арбуз', price:1290, icon:'🍉', desc:'Сладкий, как последняя ночь перед восходом.', volume:'20мл', nicotine:'50мг', category:'fruits', strength:'50' },
+  { id:8, name:'Чёрная луна', type:'Черника', price:1390, icon:'🫐', desc:'Ягодная ночь во всей своей красе.', volume:'20мл', nicotine:'35мг', category:'fruits', strength:'35' },
 ];
 
+// ================= AGE GATE =================
 function AgeGate({ onEnter }) {
   const [isCutting, setIsCutting] = React.useState(false);
   const [isEntered, setIsEntered] = React.useState(false);
@@ -139,7 +148,8 @@ function AgeGate({ onEnter }) {
   );
 }
 
-function Navbar({ cart, setPage }) {
+// ================= NAVBAR =================
+function Navbar({ cart, favorites, setPage }) {
   const total = cart.reduce((s,i)=>s+i.qty, 0);
   return React.createElement('header', { className:'sticky top-0 z-40 glass border-b border-red-900/30' },
     React.createElement('div', { className:'max-w-7xl mx-auto flex justify-between items-center px-6 py-5' },
@@ -150,6 +160,10 @@ function Navbar({ cart, setPage }) {
       React.createElement('nav', { className:'hidden md:flex gap-8 text-lg' },
         React.createElement('button', { onClick:()=>setPage('home'), className:'text-white/80 hover:text-white transition-colors' }, 'Главная'),
         React.createElement('button', { onClick:()=>setPage('catalog'), className:'text-white/80 hover:text-white transition-colors' }, 'Эликсиры'),
+        React.createElement('button', { onClick:()=>setPage('favorites'), className:'text-white/80 hover:text-white transition-colors relative' }, 
+          '❤️ Избранное',
+          favorites.length > 0 && React.createElement('span', { className:'absolute -top-2 -right-2 bg-red-600 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold' }, favorites.length)
+        ),
         React.createElement('button', { onClick:()=>document.getElementById('history-section')?.scrollIntoView({ behavior: 'smooth' }), className:'text-white/80 hover:text-white transition-colors' }, 'О клубе')
       ),
       React.createElement(motion.button, { onClick: () => setPage('cart'), whileHover: { scale: 1.05 }, whileTap: { scale: 0.95 },
@@ -162,9 +176,94 @@ function Navbar({ cart, setPage }) {
   );
 }
 
-function Home({ setPage, setSelectedProduct }) {
+// ================= ROULETTE =================
+function Roulette({ onClose }) {
+  const [spinning, setSpinning] = React.useState(false);
+  const [prize, setPrize] = React.useState(null);
+  
+  const prizes = [
+    { id: 1, text: '10%', color: '#DC143C', angle: 0 },
+    { id: 2, text: '15%', color: '#8B0000', angle: 60 },
+    { id: 3, text: '20%', color: '#DC143C', angle: 120 },
+    { id: 4, text: '5%', color: '#8B0000', angle: 180 },
+    { id: 5, text: '25%', color: '#DC143C', angle: 240 },
+    { id: 6, text: '🎁', color: '#8B0000', angle: 300 },
+  ];
+
+  const spin = () => {
+    if (spinning) return;
+    setSpinning(true);
+    const randomPrize = prizes[Math.floor(Math.random() * prizes.length)];
+    setTimeout(() => {
+      setPrize(randomPrize);
+      setSpinning(false);
+    }, 3000);
+  };
+
+  return React.createElement(motion.div, {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    className: 'fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-6 backdrop-blur-xl'
+  },
+    React.createElement('div', { className: 'glass rounded-3xl p-8 max-w-md w-full relative' },
+      React.createElement('button', {
+        onClick: onClose,
+        className: 'absolute top-4 right-4 text-white/60 hover:text-white text-2xl'
+      }, '×'),
+      React.createElement('h2', { className: 'text-4xl font-black text-center mb-6 text-glow' }, '🎰 Кровавая рулетка'),
+      React.createElement('p', { className: 'text-center text-white/70 mb-8' }, 'Крути колесо и получи скидку!'),
+      
+      React.createElement('div', { className: 'relative w-64 h-64 mx-auto mb-8' },
+        React.createElement('div', {
+          className: 'absolute inset-0 rounded-full border-4 border-red-600',
+          style: {
+            transform: spinning ? `rotate(${1800 + (prize?.angle || 0)}deg)` : `rotate(${prize?.angle || 0}deg)`,
+            transition: spinning ? 'transform 3s cubic-bezier(0.17, 0.67, 0.12, 0.99)' : 'none'
+          }
+        },
+          prizes.map((p, i) => 
+            React.createElement('div', {
+              key: i,
+              className: 'absolute inset-0 flex items-center justify-center',
+              style: { transform: `rotate(${p.angle}deg)` }
+            },
+              React.createElement('div', {
+                className: 'absolute top-0 left-1/2 -translate-x-1/2 text-2xl font-bold',
+                style: { color: '#fff', textShadow: '0 0 10px #000' }
+              }, p.text)
+            )
+          )
+        ),
+        React.createElement('div', {
+          className: 'absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2 w-0 h-0 border-l-[15px] border-r-[15px] border-b-[30px] border-l-transparent border-r-transparent border-b-red-600'
+        })
+      ),
+
+      !prize ? React.createElement(motion.button, {
+        onClick: spin,
+        disabled: spinning,
+        whileHover: { scale: 1.05 },
+        whileTap: { scale: 0.95 },
+        className: 'w-full py-4 rounded-xl text-xl font-bold glass-btn disabled:opacity-50'
+      }, spinning ? 'Крутится...' : 'Крутить!') :
+      React.createElement('div', { className: 'text-center' },
+        React.createElement('p', { className: 'text-2xl mb-4' }, 'Твой приз:'),
+        React.createElement('div', { className: 'text-5xl font-black text-red-500 text-glow mb-6' }, prize.text),
+        React.createElement('p', { className: 'text-white/70 mb-6' }, 'Промокод отправлен в бота!'),
+        React.createElement('button', {
+          onClick: onClose,
+          className: 'w-full py-4 rounded-xl text-xl font-bold glass-btn'
+        }, 'Забрать и закрыть')
+      )
+    )
+  );
+}
+
+// ================= HOME =================
+function Home({ setPage, setSelectedProduct, toggleFavorite, favorites }) {
   return React.createElement('div', { className:'min-h-screen bg-black text-white' },
-    React.createElement(Navbar, { cart: state.cart, setPage }),
+    React.createElement(Navbar, { cart: state.cart, favorites, setPage }),
     React.createElement('section', { className:'min-h-screen flex flex-col items-center justify-center text-center px-6 relative overflow-hidden' },
       React.createElement('div', { className:'absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] bg-red-900/20 rounded-full blur-[200px] pointer-events-none pulse-slow' }),
       React.createElement(motion.div, { initial: { opacity: 0, y: 40 }, animate: { opacity: 1, y: 0 }, transition: { duration: 1 } },
@@ -196,15 +295,20 @@ function Home({ setPage, setSelectedProduct }) {
         PRODUCTS.slice(0,6).map((p,i) =>
           React.createElement(motion.div, { key: p.id, initial: { opacity: 0, y: 50 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true },
             transition: { delay: i * 0.1 }, whileHover: { y: -8, scale: 1.02 },
-            onClick: () => { setSelectedProduct(p); setPage('product'); },
             className:'glass rounded-3xl p-8 cursor-pointer group relative overflow-hidden' },
-            React.createElement('div', { className:'absolute top-0 right-0 w-40 h-40 bg-red-600/10 rounded-full blur-3xl group-hover:bg-red-600/30 transition-all' }),
-            React.createElement('div', { className:'text-7xl mb-6 group-hover:scale-110 transition-transform' }, p.icon),
-            React.createElement('h3', { className:'text-3xl font-bold mb-2 text-white' }, p.name),
-            React.createElement('p', { className:'text-white/50 mb-4 text-lg' }, p.type),
-            React.createElement('div', { className:'flex justify-between items-center mt-6' },
-              React.createElement('span', { className:'text-2xl font-bold text-red-500' }, p.price + ' ₽'),
-              React.createElement('span', { className:'text-white/40 group-hover:text-white transition-colors' }, 'Подробнее →')
+            React.createElement('button', {
+              onClick: (e) => { e.stopPropagation(); toggleFavorite(p); },
+              className: 'absolute top-4 right-4 z-10 text-3xl'
+            }, favorites.includes(p.id) ? '❤️' : '🤍'),
+            React.createElement('div', { onClick: () => { setSelectedProduct(p); setPage('product'); }, className:'cursor-pointer' },
+              React.createElement('div', { className:'absolute top-0 right-0 w-40 h-40 bg-red-600/10 rounded-full blur-3xl group-hover:bg-red-600/30 transition-all' }),
+              React.createElement('div', { className:'text-7xl mb-6 group-hover:scale-110 transition-transform' }, p.icon),
+              React.createElement('h3', { className:'text-3xl font-bold mb-2 text-white' }, p.name),
+              React.createElement('p', { className:'text-white/50 mb-4 text-lg' }, p.type),
+              React.createElement('div', { className:'flex justify-between items-center mt-6' },
+                React.createElement('span', { className:'text-2xl font-bold text-red-500' }, p.price + ' ₽'),
+                React.createElement('span', { className:'text-white/40 group-hover:text-white transition-colors' }, 'Подробнее →')
+              )
             )
           )
         )
@@ -240,44 +344,208 @@ function Home({ setPage, setSelectedProduct }) {
   );
 }
 
-function Catalog({ setPage, setSelectedProduct, addToCart }) {
+// ================= CATALOG =================
+function Catalog({ setPage, setSelectedProduct, addToCart, toggleFavorite, favorites }) {
+  const [search, setSearch] = React.useState('');
+  const [category, setCategory] = React.useState('all');
+  const [strength, setStrength] = React.useState('all');
+
+  const filtered = PRODUCTS.filter(p => {
+    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || 
+                        p.type.toLowerCase().includes(search.toLowerCase());
+    const matchCat = category === 'all' || p.category === category;
+    const matchStr = strength === 'all' || p.strength === strength;
+    return matchSearch && matchCat && matchStr;
+  });
+
   return React.createElement('div', { className:'min-h-screen bg-black text-white' },
-    React.createElement(Navbar, { cart: state.cart, setPage }),
+    React.createElement(Navbar, { cart: state.cart, favorites, setPage }),
     React.createElement('main', { className:'max-w-7xl mx-auto px-6 py-16' },
-      React.createElement(motion.div, { initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0 }, className:'text-center mb-16' },
+      React.createElement(motion.div, { initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0 }, className:'text-center mb-12' },
         React.createElement('p', { className:'text-red-500 font-semibold mb-3 tracking-widest uppercase' }, '— Погреб VeltroBlood —'),
-        React.createElement('h1', { className:'text-6xl md:text-8xl font-black mb-6 text-glow' }, 'Каталог ', React.createElement('span', { className:'text-red-600' }, 'эликсиров')),
+        React.createElement('h1', { className:'text-6xl md:text-8xl font-black mb-6 text-glow' }, 
+          'Каталог ', React.createElement('span', { className:'text-red-600' }, 'эликсиров')),
         React.createElement('p', { className:'text-xl md:text-2xl text-white/60' }, 'Каждый вкус — новое проклятие. Выбирай мудро.')
       ),
-      React.createElement('div', { className:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' },
-        PRODUCTS.map((p, i) =>
-          React.createElement(motion.div, { key: p.id, initial: { opacity: 0, y: 40 }, animate: { opacity: 1, y: 0 }, transition: { delay: i * 0.07 },
-            whileHover: { y: -8 }, className:'glass rounded-3xl p-6 flex flex-col relative overflow-hidden group' },
-            React.createElement('div', { className:'absolute -top-10 -right-10 w-40 h-40 bg-red-600/10 rounded-full blur-3xl group-hover:bg-red-600/30 transition-all' }),
-            React.createElement('div', { onClick: () => { setSelectedProduct(p); setPage('product'); }, className:'cursor-pointer' },
-              React.createElement('div', { className:'text-7xl mb-4 group-hover:scale-110 transition-transform' }, p.icon),
-              React.createElement('h3', { className:'text-2xl font-bold mb-1 text-white' }, p.name),
-              React.createElement('p', { className:'text-white/50 mb-3' }, p.type),
-              React.createElement('p', { className:'text-white/40 text-sm mb-6 line-clamp-2' }, p.desc)
-            ),
-            React.createElement('div', { className:'mt-auto pt-4 border-t border-white/10 flex justify-between items-center' },
-              React.createElement('span', { className:'text-2xl font-bold text-red-500' }, p.price + ' ₽'),
-              React.createElement(motion.button, { onClick: (e) => { e.stopPropagation(); addToCart(p); if(tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); },
-                whileHover: { scale: 1.08 }, whileTap: { scale: 0.92 },
-                className:'px-5 py-2 rounded-lg text-sm font-bold glass-btn' }, 'В склеп')
-            )
+
+      React.createElement('div', { className:'mb-8 max-w-2xl mx-auto' },
+        React.createElement('div', { className:'relative glass rounded-2xl overflow-hidden' },
+          React.createElement('span', { className:'absolute left-5 top-1/2 -translate-y-1/2 text-2xl text-red-500' }, '🔍'),
+          React.createElement('input', {
+            type: 'text',
+            value: search,
+            onChange: (e) => setSearch(e.target.value),
+            placeholder: 'Найти эликсир по имени или вкусу...',
+            className:'w-full pl-14 pr-5 py-5 bg-transparent text-white text-lg placeholder-white/40 outline-none'
+          }),
+          search && React.createElement('button', {
+            onClick: () => setSearch(''),
+            className:'absolute right-5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white text-xl'
+          }, '×')
+        )
+      ),
+
+      React.createElement('div', { className:'mb-10 space-y-4' },
+        React.createElement('div', { className:'flex flex-wrap gap-3 justify-center' },
+          [
+            { key: 'all', label: '🩸 Все' },
+            { key: 'fruits', label: '🍓 Фрукты' },
+            { key: 'tobacco', label: '🚬 Табак' },
+            { key: 'dessert', label: '🍰 Десерты' },
+            { key: 'fresh', label: '❄️ Освежающие' },
+          ].map(c => 
+            React.createElement(motion.button, {
+              key: c.key,
+              onClick: () => setCategory(c.key),
+              whileHover: { scale: 1.05 },
+              whileTap: { scale: 0.95 },
+              className: `px-6 py-3 rounded-xl text-base font-semibold transition-all ${
+                category === c.key 
+                  ? 'glass-btn' 
+                  : 'border border-white/20 text-white/70 hover:border-red-600/50'
+              }`
+            }, c.label)
+          )
+        ),
+
+        React.createElement('div', { className:'flex flex-wrap gap-3 justify-center' },
+          [
+            { key: 'all', label: 'Любая крепость' },
+            { key: '20', label: '20 мг' },
+            { key: '35', label: '35 мг' },
+            { key: '50', label: '50 мг 💀' },
+          ].map(s => 
+            React.createElement(motion.button, {
+              key: s.key,
+              onClick: () => setStrength(s.key),
+              whileHover: { scale: 1.05 },
+              whileTap: { scale: 0.95 },
+              className: `px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                strength === s.key 
+                  ? 'bg-red-600/80 text-white border border-red-500' 
+                  : 'border border-white/15 text-white/60 hover:border-red-600/50'
+              }`
+            }, s.label)
           )
         )
-      )
+      ),
+
+      React.createElement('p', { className:'text-white/50 text-center mb-8 text-lg' },
+        `Найдено эликсиров: `,
+        React.createElement('span', { className:'text-red-500 font-bold' }, filtered.length)
+      ),
+
+      filtered.length === 0
+        ? React.createElement('div', { className:'text-center py-20' },
+            React.createElement('div', { className:'text-7xl mb-4' }, '⚰️'),
+            React.createElement('p', { className:'text-2xl text-white/60' }, 'По вашему запросу ничего не найдено в склепе...'),
+            React.createElement('button', {
+              onClick: () => { setSearch(''); setCategory('all'); setStrength('all'); },
+              className:'mt-6 px-8 py-3 glass-btn rounded-xl font-bold'
+            }, 'Сбросить фильтры')
+          )
+        : React.createElement('div', { className:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' },
+            filtered.map((p, i) =>
+              React.createElement(motion.div, { 
+                key: p.id, 
+                initial: { opacity: 0, y: 40 }, 
+                animate: { opacity: 1, y: 0 }, 
+                transition: { delay: i * 0.05 },
+                whileHover: { y: -8 }, 
+                className:'glass rounded-3xl p-6 flex flex-col relative overflow-hidden group' 
+              },
+                React.createElement('button', {
+                  onClick: (e) => { e.stopPropagation(); toggleFavorite(p); },
+                  className: 'absolute top-4 right-4 z-10 text-3xl hover:scale-110 transition-transform'
+                }, favorites.includes(p.id) ? '❤️' : '🤍'),
+                React.createElement('div', { className:'absolute -top-10 -right-10 w-40 h-40 bg-red-600/10 rounded-full blur-3xl group-hover:bg-red-600/30 transition-all' }),
+                React.createElement('div', { onClick: () => { setSelectedProduct(p); setPage('product'); }, className:'cursor-pointer' },
+                  React.createElement('div', { className:'text-7xl mb-4 group-hover:scale-110 transition-transform' }, p.icon),
+                  React.createElement('h3', { className:'text-2xl font-bold mb-1 text-white' }, p.name),
+                  React.createElement('p', { className:'text-white/50 mb-3' }, p.type),
+                  React.createElement('p', { className:'text-white/40 text-sm mb-6 line-clamp-2' }, p.desc)
+                ),
+                React.createElement('div', { className:'mt-auto pt-4 border-t border-white/10 flex justify-between items-center' },
+                  React.createElement('span', { className:'text-2xl font-bold text-red-500' }, p.price + ' ₽'),
+                  React.createElement(motion.button, { 
+                    onClick: (e) => { e.stopPropagation(); addToCart(p); if(tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); },
+                    whileHover: { scale: 1.08 }, whileTap: { scale: 0.92 },
+                    className:'px-5 py-2 rounded-lg text-sm font-bold glass-btn' 
+                  }, 'В склеп')
+                )
+              )
+            )
+          )
     )
   );
 }
 
-function Product({ product, setPage, addToCart }) {
+// ================= FAVORITES =================
+function Favorites({ setPage, setSelectedProduct, addToCart, toggleFavorite, favorites }) {
+  const favoriteProducts = PRODUCTS.filter(p => favorites.includes(p.id));
+
+  return React.createElement('div', { className:'min-h-screen bg-black text-white' },
+    React.createElement(Navbar, { cart: state.cart, favorites, setPage }),
+    React.createElement('main', { className:'max-w-7xl mx-auto px-6 py-16' },
+      React.createElement(motion.div, { initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0 }, className:'text-center mb-12' },
+        React.createElement('h1', { className:'text-6xl md:text-8xl font-black mb-6 text-glow' }, '❤️ Мои желания'),
+        React.createElement('p', { className:'text-xl md:text-2xl text-white/60' }, 'Эликсиры, которые покорили твоё сердце')
+      ),
+
+      favoriteProducts.length === 0
+        ? React.createElement('div', { className:'glass rounded-3xl p-20 text-center' },
+            React.createElement('div', { className:'text-7xl mb-6' }, '💔'),
+            React.createElement('p', { className:'text-2xl text-white/60 mb-6' }, 'Пока ничего не добавлено в избранное'),
+            React.createElement('p', { className:'text-white/40 mb-8' }, 'Нажми на сердечко на карточке товара'),
+            React.createElement(motion.button, {
+              onClick: () => setPage('catalog'),
+              whileHover: { scale: 1.05 },
+              whileTap: { scale: 0.95 },
+              className:'px-10 py-4 rounded-xl text-lg font-bold glass-btn'
+            }, 'К эликсирам')
+          )
+        : React.createElement('div', { className:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6' },
+            favoriteProducts.map((p, i) =>
+              React.createElement(motion.div, { 
+                key: p.id, 
+                initial: { opacity: 0, y: 40 }, 
+                animate: { opacity: 1, y: 0 }, 
+                transition: { delay: i * 0.05 },
+                whileHover: { y: -8 }, 
+                className:'glass rounded-3xl p-6 flex flex-col relative overflow-hidden group' 
+              },
+                React.createElement('button', {
+                  onClick: (e) => { e.stopPropagation(); toggleFavorite(p); },
+                  className: 'absolute top-4 right-4 z-10 text-3xl hover:scale-110 transition-transform'
+                }, '❤️'),
+                React.createElement('div', { className:'absolute -top-10 -right-10 w-40 h-40 bg-red-600/10 rounded-full blur-3xl group-hover:bg-red-600/30 transition-all' }),
+                React.createElement('div', { onClick: () => { setSelectedProduct(p); setPage('product'); }, className:'cursor-pointer' },
+                  React.createElement('div', { className:'text-7xl mb-4 group-hover:scale-110 transition-transform' }, p.icon),
+                  React.createElement('h3', { className:'text-2xl font-bold mb-1 text-white' }, p.name),
+                  React.createElement('p', { className:'text-white/50 mb-3' }, p.type),
+                  React.createElement('p', { className:'text-white/40 text-sm mb-6 line-clamp-2' }, p.desc)
+                ),
+                React.createElement('div', { className:'mt-auto pt-4 border-t border-white/10 flex justify-between items-center' },
+                  React.createElement('span', { className:'text-2xl font-bold text-red-500' }, p.price + ' ₽'),
+                  React.createElement(motion.button, { 
+                    onClick: (e) => { e.stopPropagation(); addToCart(p); if(tg?.HapticFeedback) tg.HapticFeedback.impactOccurred('light'); },
+                    whileHover: { scale: 1.08 }, whileTap: { scale: 0.92 },
+                    className:'px-5 py-2 rounded-lg text-sm font-bold glass-btn' 
+                  }, 'В склеп')
+                )
+              )
+            )
+          )
+    )
+  );
+}
+
+// ================= PRODUCT =================
+function Product({ product, setPage, addToCart, toggleFavorite, favorites }) {
   if (!product) return null;
   const p = product;
   return React.createElement('div', { className:'min-h-screen bg-black text-white' },
-    React.createElement(Navbar, { cart: state.cart, setPage }),
+    React.createElement(Navbar, { cart: state.cart, favorites, setPage }),
     React.createElement('main', { className:'max-w-6xl mx-auto px-6 py-16' },
       React.createElement('button', { onClick: () => setPage('catalog'), className:'text-white/60 hover:text-white mb-8 text-lg' }, '← Назад к каталогу'),
       React.createElement('div', { className:'grid md:grid-cols-2 gap-12' },
@@ -286,7 +554,13 @@ function Product({ product, setPage, addToCart }) {
           React.createElement('div', { className:'text-[15rem] relative z-10' }, p.icon)
         ),
         React.createElement('div', { className:'flex flex-col' },
-          React.createElement('p', { className:'text-red-500 font-semibold mb-2 tracking-widest uppercase' }, p.type),
+          React.createElement('div', { className:'flex justify-between items-start mb-4' },
+            React.createElement('p', { className:'text-red-500 font-semibold tracking-widest uppercase' }, p.type),
+            React.createElement('button', {
+              onClick: () => toggleFavorite(p),
+              className: 'text-4xl hover:scale-110 transition-transform'
+            }, favorites.includes(p.id) ? '❤️' : '🤍')
+          ),
           React.createElement('h1', { className:'text-5xl md:text-7xl font-black mb-6 text-glow' }, p.name),
           React.createElement('p', { className:'text-xl text-white/70 leading-relaxed mb-8' }, p.desc),
           React.createElement('div', { className:'grid grid-cols-2 gap-4 mb-10' },
@@ -311,6 +585,7 @@ function Product({ product, setPage, addToCart }) {
   );
 }
 
+// ================= CART =================
 function Cart({ cart, setCart, setPage }) {
   const total = cart.reduce((s,i) => s + i.price * i.qty, 0);
   const removeItem = (id) => setCart(cart.filter(i => i.id !== id));
@@ -318,22 +593,11 @@ function Cart({ cart, setCart, setPage }) {
     setCart(cart.map(i => i.id === id ? {...i, qty: Math.max(0, i.qty + delta)} : i).filter(i => i.qty > 0));
   };
   const checkout = () => {
-    const orderData = JSON.stringify({
-      items: cart.map(i => ({name: i.name, qty: i.qty, price: i.price})),
-      total: total,
-      userId: tg?.initDataUnsafe?.user?.id || 'unknown',
-      userName: tg?.initDataUnsafe?.user?.first_name || 'Аноним',
-      date: new Date().toISOString()
-    });
-    if (tg) {
-      tg.sendData(orderData); // Отправит заказ боту и закроет WebApp
-    } else {
-      alert('Заказ оформлен! (В реальном Telegram здесь бы открылся чат с ботом)');
-    }
+    setPage('tracking');
   };
 
   return React.createElement('div', { className:'min-h-screen bg-black text-white' },
-    React.createElement(Navbar, { cart: cart, setPage }),
+    React.createElement(Navbar, { cart: cart, favorites: state.favorites, setPage }),
     React.createElement('main', { className:'max-w-5xl mx-auto px-6 py-16' },
       React.createElement('p', { className:'text-red-500 font-semibold mb-3 tracking-widest uppercase' }, '— Ваш склеп —'),
       React.createElement('h1', { className:'text-5xl md:text-7xl font-black mb-12 text-glow' }, 'Камера ', React.createElement('span', { className:'text-red-600' }, 'хранения')),
@@ -378,10 +642,102 @@ function Cart({ cart, setCart, setPage }) {
   );
 }
 
+// ================= TRACKING =================
+function Tracking({ setPage }) {
+  const [stage, setStage] = React.useState(0);
+  
+  const stages = [
+    { icon: '🩸', text: 'Заказ принят' },
+    { icon: '⚰️', text: 'Готовится в склепе' },
+    { icon: '🦇', text: 'Летучая мышь вылетела' },
+    { icon: '🏰', text: 'Прибыл в ваш замок' },
+  ];
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setStage(s => {
+        if (s < stages.length - 1) return s + 1;
+        clearInterval(timer);
+        return s;
+      });
+    }, 2000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return React.createElement('div', { className:'min-h-screen bg-black text-white' },
+    React.createElement(Navbar, { cart: [], favorites: state.favorites, setPage }),
+    React.createElement('main', { className:'max-w-5xl mx-auto px-6 py-16' },
+      React.createElement(motion.div, { initial: { opacity: 0, y: 30 }, animate: { opacity: 1, y: 0 }, className:'text-center mb-12' },
+        React.createElement('h1', { className:'text-5xl md:text-7xl font-black mb-6 text-glow' }, '🗺️ Карта Трансильвании'),
+        React.createElement('p', { className:'text-xl text-white/60' }, 'Следи за путешествием своего эликсира')
+      ),
+
+      React.createElement('div', { className:'glass rounded-3xl p-8 mb-8 relative overflow-hidden', style: { minHeight: '300px' } },
+        React.createElement('div', { className:'absolute inset-0 opacity-20', style: {
+          backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 800 400\'%3E%3Cpath d=\'M 100 200 Q 200 100 300 200 T 500 200 T 700 200\' stroke=\'%23DC143C\' fill=\'none\' stroke-width=\'3\'/%3E%3C/svg%3E")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}),
+        React.createElement('div', {
+          className: 'absolute text-4xl',
+          style: {
+            top: '50%',
+            left: `${10 + (stage * 20)}%`,
+            transform: 'translateY(-50%)',
+            transition: 'left 1.5s ease-in-out'
+          }
+        }, stage < 3 ? '🦇' : '🏰'),
+        React.createElement('div', { className:'absolute bottom-4 left-4 text-white/60 text-sm' }, 'Трек-номер: VB-' + Math.random().toString(36).substr(2, 8).toUpperCase())
+      ),
+
+      React.createElement('div', { className:'space-y-4' },
+        stages.map((s, i) =>
+          React.createElement(motion.div, {
+            key: i,
+            initial: { opacity: 0, x: -20 },
+            animate: { opacity: i <= stage ? 1 : 0.3, x: 0 },
+            transition: { delay: i * 0.1 },
+            className: `glass rounded-2xl p-6 flex items-center gap-4 ${i <= stage ? 'border-red-600/50' : 'border-white/10'}`
+          },
+            React.createElement('div', { className: 'text-4xl' }, s.icon),
+            React.createElement('div', { className: 'flex-1' },
+              React.createElement('p', { className: 'text-xl font-bold' }, s.text),
+              i <= stage && React.createElement('p', { className: 'text-white/50 text-sm' }, new Date().toLocaleTimeString('ru-RU'))
+            ),
+            i <= stage && React.createElement('div', { className: 'text-green-500 text-2xl' }, '✓')
+          )
+        )
+      ),
+
+      React.createElement('div', { className: 'mt-12 text-center' },
+        React.createElement(motion.button, {
+          onClick: () => setPage('home'),
+          whileHover: { scale: 1.05 },
+          whileTap: { scale: 0.95 },
+          className: 'px-10 py-4 rounded-xl text-lg font-bold glass-btn'
+        }, 'Вернуться в бар')
+      )
+    )
+  );
+}
+
+// ================= APP ROOT =================
 function App() {
   const { page } = useStore();
   const [cart, setCart] = React.useState([]);
+  const [favorites, setFavorites] = React.useState([]);
   const [selectedProduct, setSelectedProduct] = React.useState(null);
+  const [showRoulette, setShowRoulette] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!state.hasSeenRoulette && page === 'home') {
+      const timer = setTimeout(() => {
+        setShowRoulette(true);
+        setState({ hasSeenRoulette: true });
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [page]);
 
   const addToCart = (p) => {
     setCart(prev => {
@@ -390,21 +746,40 @@ function App() {
         ? prev.map(i => i.id === p.id ? {...i, qty: i.qty+1} : i)
         : [...prev, {...p, qty:1}];
     });
-    state.cart = cart; // синхронизация
+    state.cart = cart;
   };
+
+  const toggleFavorite = (p) => {
+    setFavorites(prev => {
+      const newFavs = prev.includes(p.id)
+        ? prev.filter(id => id !== p.id)
+        : [...prev, p.id];
+      state.favorites = newFavs;
+      return newFavs;
+    });
+  };
+
   state.cart = cart;
+  state.favorites = favorites;
 
   const setPage = (p) => setState({page: p});
 
-  return React.createElement(AnimatePresence, { mode: 'wait' },
-    page === 'ageGate' && React.createElement(motion.div, { key:'age', initial:{opacity:0}, animate:{opacity:1}, exit:{opacity:0} },
-      React.createElement(AgeGate, { onEnter: () => setPage('home') })
+  return React.createElement(React.Fragment, null,
+    React.createElement(AnimatePresence, { mode: 'wait' },
+      page === 'ageGate' && React.createElement(motion.div, { key:'age', initial:{opacity:0}, animate:{opacity:1}, exit:{opacity:0} },
+        React.createElement(AgeGate, { onEnter: () => setPage('home') })
+      ),
+      page !== 'ageGate' && React.createElement(motion.div, { key:'main', initial:{opacity:0}, animate:{opacity:1}, exit:{opacity:0}, className:'min-h-screen bg-black text-white' },
+        page === 'home' && React.createElement(Home, { setPage, setSelectedProduct, toggleFavorite, favorites }),
+        page === 'catalog' && React.createElement(Catalog, { setPage, setSelectedProduct, addToCart, toggleFavorite, favorites }),
+        page === 'favorites' && React.createElement(Favorites, { setPage, setSelectedProduct, addToCart, toggleFavorite, favorites }),
+        page === 'product' && React.createElement(Product, { product: selectedProduct, setPage, addToCart, toggleFavorite, favorites }),
+        page === 'cart' && React.createElement(Cart, { cart, setCart, setPage }),
+        page === 'tracking' && React.createElement(Tracking, { setPage })
+      )
     ),
-    page !== 'ageGate' && React.createElement(motion.div, { key:'main', initial:{opacity:0}, animate:{opacity:1}, exit:{opacity:0}, className:'min-h-screen bg-black text-white' },
-      page === 'home' && React.createElement(Home, { setPage, setSelectedProduct }),
-      page === 'catalog' && React.createElement(Catalog, { setPage, setSelectedProduct, addToCart }),
-      page === 'product' && React.createElement(Product, { product: selectedProduct, setPage, addToCart }),
-      page === 'cart' && React.createElement(Cart, { cart, setCart, setPage })
+    React.createElement(AnimatePresence, null,
+      showRoulette && React.createElement(Roulette, { onClose: () => setShowRoulette(false) })
     )
   );
 }
