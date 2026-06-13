@@ -175,7 +175,78 @@ function Navbar({ cart, favorites, setPage }) {
     )
   );
 }
+// ================= SOCIAL PROOF =================
+function SocialProof() {
+  const [count, setCount] = React.useState(0);
+  const baseCount = 1247 + Math.floor((new Date().getHours() * 13) + (new Date().getDate() * 7));
+  const [pulse, setPulse] = React.useState(false);
 
+  // Анимация начального подсчета
+  React.useEffect(() => {
+    const duration = 2500;
+    const steps = 60;
+    const increment = baseCount / steps;
+    let current = 0;
+    const interval = setInterval(() => {
+      current += increment;
+      if (current >= baseCount) {
+        setCount(baseCount);
+        clearInterval(interval);
+      } else {
+        setCount(Math.floor(current));
+      }
+    }, duration / steps);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Постепенный рост каждые 15-45 секунд
+  React.useEffect(() => {
+    const grow = () => {
+      const add = Math.floor(Math.random() * 3) + 1;
+      setCount(c => c + add);
+      setPulse(true);
+      setTimeout(() => setPulse(false), 600);
+    };
+    const schedule = () => {
+      const delay = 15000 + Math.random() * 30000;
+      setTimeout(() => {
+        grow();
+        schedule();
+      }, delay);
+    };
+    const timer = setTimeout(schedule, 8000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return React.createElement(motion.div, {
+    initial: { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+    transition: { delay: 1.5, duration: 0.8 },
+    className: 'flex items-center gap-3 px-6 py-3 rounded-full glass max-w-md mx-auto',
+    style: {
+      border: '1px solid rgba(220, 20, 60, 0.4)',
+      boxShadow: pulse ? '0 0 30px rgba(220, 20, 60, 0.6)' : '0 0 15px rgba(220, 20, 60, 0.2)'
+    }
+  },
+    React.createElement('div', { className: 'flex items-center -space-x-2' },
+      React.createElement('div', { className: 'w-8 h-8 rounded-full bg-gradient-to-br from-red-600 to-red-900 border-2 border-black flex items-center justify-center text-sm' }, '👻'),
+      React.createElement('div', { className: 'w-8 h-8 rounded-full bg-gradient-to-br from-red-700 to-red-950 border-2 border-black flex items-center justify-center text-sm' }, '🦇'),
+      React.createElement('div', { className: 'w-8 h-8 rounded-full bg-gradient-to-br from-red-600 to-red-900 border-2 border-black flex items-center justify-center text-sm' }, '🩸')
+    ),
+    React.createElement('div', { className: 'flex items-center gap-2' },
+      React.createElement(motion.span, {
+        key: count,
+        initial: { scale: pulse ? 1.2 : 1 },
+        animate: { scale: 1 },
+        className: 'text-2xl font-black text-red-500',
+        style: {
+          textShadow: '0 0 15px rgba(220, 20, 60, 0.8)'
+        }
+      }, count.toLocaleString('ru-RU')),
+      React.createElement('span', { className: 'text-white/80 text-base' }, 'душ уже переступили порог')
+    )
+  );
+}
 // ================= ROULETTE =================
 function Roulette({ onClose }) {
   const [spinning, setSpinning] = React.useState(false);
